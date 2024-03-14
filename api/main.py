@@ -17,7 +17,7 @@ class Post(BaseModel):
     rating: Optional[int] = None
     
     
-conn = psycopg.connect('host=localhost port=5432 dbname=fastapi user=postgres password=postgres',
+conn = psycopg.connect('host=db port=5432 dbname=postgres user=postgres password=postgres',
                      row_factory=dict_row)
 
 try:
