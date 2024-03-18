@@ -1,3 +1,4 @@
+import time
 from fastapi import FastAPI, Response, status, HTTPException
 from fastapi.params import Body
 from pydantic import BaseModel
@@ -14,24 +15,49 @@ class Post(BaseModel):
     title: str
     content: str
     published: bool = True
-    rating: Optional[int] = None
-    
-    
-conn = psycopg.connect('host=db port=5432 dbname=postgres user=postgres password=postgres',
-                     row_factory=dict_row)
-
-try:
-    cursor = conn.cursor()
+    # rating: Optional[int] = None
     
 
-except BaseException:
-    conn.rollback()
+class DBConnection(object):
+    _conn: psycopg.Connection = None
+    _retries: int = 3
+
+    cursor: psycopg.Cursor = None
+
+    def __init__(self, dbname: str, host: str, port: int, user: str, password: str, retry: Optional[int]=3) -> None:
+        self._retries = retry
+        count = 0
+
+        while count < self._retries:
+            try:
+                self._conn = psycopg.connect(f'host={host} port={port} dbname={dbname} user={user} password={password}',
+                            row_factory=dict_row)
+                
+                self.cursor = self._conn.cursor()
+
+                return
+
+            except Exception as e:
+                print(f"Exception occurred!\n{e}")
+                count += 1
+                print(f"Attempt {count}/{self._retries}", flush=True)
+                time.sleep(3)
+
+        raise ConnectionError
     
-else:
-    conn.commit()
+    def get_connection(self):
+        if not self._conn.closed():
+            return self._conn
+        else:
+            return None
     
-finally:
-    conn.close()
+    def close_connection(self):
+        if not self._conn.closed:
+            del self.cursor
+            self._conn.close()
+
+
+dbconn = DBConnection(dbname="fastapi-yt-sanjeev", host="db", port=5432, user="postgres", password="postgres")
 
 
 posts_db = [
@@ -65,7 +91,9 @@ async def root():
 
 @app.get("/posts")
 async def get_posts():
-    return {"posts": posts_db }
+    dbconn.cursor.execute("""SELECT * FROM posts""")
+    posts = dbconn.cursor.fetchall()
+    return {"posts": posts }
 
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
