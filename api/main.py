@@ -18,10 +18,10 @@ class Post(BaseModel):
     # rating: Optional[int] = None
     
 
-class DBConnection(object):
-    _conn: psycopg.Connection = None
+class MyDatabase(object):
     _retries: int = 3
 
+    conn: psycopg.Connection = None
     cursor: psycopg.Cursor = None
 
     def __init__(self, dbname: str, host: str, port: int, user: str, password: str, retry: Optional[int]=3) -> None:
@@ -30,10 +30,10 @@ class DBConnection(object):
 
         while count < self._retries:
             try:
-                self._conn = psycopg.connect(f'host={host} port={port} dbname={dbname} user={user} password={password}',
+                self.conn = psycopg.connect(f'host={host} port={port} dbname={dbname} user={user} password={password}',
                             row_factory=dict_row)
                 
-                self.cursor = self._conn.cursor()
+                self.cursor = self.conn.cursor()
 
                 return
 
@@ -45,43 +45,13 @@ class DBConnection(object):
 
         raise ConnectionError
     
-    def get_connection(self):
-        if not self._conn.closed():
-            return self._conn
-        else:
-            return None
-    
     def close_connection(self):
-        if not self._conn.closed:
+        if not self.conn.closed:
             del self.cursor
-            self._conn.close()
+            self.conn.close()
 
 
-dbconn = DBConnection(dbname="fastapi-yt-sanjeev", host="db", port=5432, user="postgres", password="postgres")
-
-
-posts_db = [
-    {"title": "How to make Pizza",
-     "content": "The best pizza you've ever had",
-     "id": 1
-     }
-    ]
-
-
-def find_post(id: int):
-    for p in posts_db:
-        if p['id'] == id:
-            return p
-    
-    return None
-
-
-def get_index(id: int):
-    for i, p in enumerate(posts_db):
-        if p['id'] == id:
-            return i
-        
-    return None
+db = MyDatabase(dbname="fastapi-yt-sanjeev", host="db", port=5432, user="postgres", password="postgres")
 
 
 @app.get("/")
@@ -91,55 +61,60 @@ async def root():
 
 @app.get("/posts")
 async def get_posts():
-    dbconn.cursor.execute("""SELECT * FROM posts""")
-    posts = dbconn.cursor.fetchall()
+    db.cursor.execute("""SELECT * FROM posts""")
+    posts = db.cursor.fetchall()
     return {"posts": posts }
 
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
 async def create_post(post: Post): # can be any variable name
-    post_dict = post.model_dump()
-    post_dict['id'] = randrange(1, 10000000)
-    posts_db.append(post_dict)
-    return { "message": "Post created." } | post_dict
+    db.cursor.execute("""INSERT INTO posts (title, content, published) 
+                          VALUES (%s, %s, %s) RETURNING * """,
+                          (post.title, post.content, post.published))
+    
+    new_post = db.cursor.fetchone()
+    db.conn.commit()
+    return { "data": new_post }
     
 
 @app.get("/posts/{id}")
 async def get_post(id: int):
-    post = find_post(id)
-    if post == None:
+    db.cursor.execute("""SELECT * FROM posts WHERE id = %s""", (id,))
+    query_post = db.cursor.fetchone()
+
+    if query_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Post with id:{id} does not exist on the database.")
-        # response.status_code = status.HTTP_404_NOT_FOUND
-        # return {"message": f"Post with id:{id} does not exist on the database."}
-    else:
-        return post
+                            detail=f"Post with id:{id} was not found.")
+
+    return { "post_detail": query_post }
     
     
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_post(id: int):
-    index = get_index(id)
-    
-    if index == None:
+    db.cursor.execute("""DELETE FROM posts WHERE id = %s RETURNING *""", (id,))
+    del_post = db.cursor.fetchone()
+
+    if del_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Unable to delete post with id:{id}. Post was not found.")
-        
-    else:
-        posts_db.pop(index)
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    db.conn.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
     
     
 @app.put("/posts/{id}")
 async def update_post(id: int, post: Post):
-    index = get_index(id)
-    
-    if index == None:
+    db.cursor.execute("""
+                      UPDATE posts
+                        SET title = %s, content = %s, published = %s
+                        WHERE id = %s RETURNING *""",
+                        (post.title, post.content, post.published, id))
+    upd_post = db.cursor.fetchone()
+
+    if upd_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id:{id} was not found.")
     
-    post_dict = post.model_dump()
-    post_dict['id'] = int(id)
-    posts_db[index] = post_dict
-    
-    return {"data": post_dict}
+    db.conn.commit()
+    return {"post_detail": upd_post}
     
