@@ -1,12 +1,20 @@
 import time
-from fastapi import FastAPI, Response, status, HTTPException
+from fastapi import FastAPI, Response, status, HTTPException, Depends
 from fastapi.params import Body
 from pydantic import BaseModel
 from typing import Optional
 from random import randrange
+from sqlalchemy.orm import Session
 
 import psycopg
 from psycopg.rows import dict_row
+
+import crud, models
+from database import engine, get_db
+
+
+models.Base.metadata.create_all(bind=engine)
+
 
 app = FastAPI()
 
@@ -16,7 +24,7 @@ class Post(BaseModel):
     content: str
     published: bool = True
     # rating: Optional[int] = None
-    
+
 
 class MyDatabase(object):
     _retries: int = 3
@@ -60,10 +68,9 @@ async def root():
 
 
 @app.get("/posts")
-async def get_posts():
-    db.cursor.execute("""SELECT * FROM posts""")
-    posts = db.cursor.fetchall()
-    return {"posts": posts }
+async def get_posts(db: Session = Depends(get_db)):
+    posts = crud.get_posts(db)
+    return posts
 
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
