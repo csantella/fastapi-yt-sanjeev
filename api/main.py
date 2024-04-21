@@ -5,11 +5,10 @@ from pydantic import BaseModel
 from typing import Optional
 from random import randrange
 from sqlalchemy.orm import Session
-
 import psycopg
 from psycopg.rows import dict_row
 
-import crud, models, schemas
+import crud, models, schemas, utils
 from database import engine, get_db
 
 
@@ -52,7 +51,7 @@ class MyDatabase(object):
             self.conn.close()
 
 
-db = MyDatabase(dbname="fastapi-yt-sanjeev", host="db", port=5432, user="postgres", password="postgres")
+#db = MyDatabase(dbname="fastapi-yt-sanjeev", host="db", port=5432, user="postgres", password="postgres")
 
 
 @app.get("/")
@@ -66,7 +65,7 @@ async def get_posts(db: Session = Depends(get_db)):
     return posts
 
 
-@app.post("/posts", status_code=status.HTTP_201_CREATED)
+@app.post("/posts", status_code=status.HTTP_201_CREATED, response_model=schemas.PostResponse)
 async def create_post(post: schemas.PostCreate, db: Session = Depends(get_db)):
     """ INSERT INTO posts (title, content, published) 
             VALUES (%s, %s, %s) RETURNING *,
@@ -83,10 +82,10 @@ async def create_post(post: schemas.PostCreate, db: Session = Depends(get_db)):
     # replace 'new_post' with the refreshed version from the database
     db.refresh(new_post)
 
-    return { "data": new_post }
+    return new_post
     
 
-@app.get("/posts/{id}")
+@app.get("/posts/{id}", response_model=schemas.PostResponse)
 async def get_post(id: int, db: Session = Depends(get_db)):
     # """SELECT * FROM posts WHERE id = %s""", (id,))
     query_post = crud.get_post_by_id(db, id)
@@ -95,7 +94,7 @@ async def get_post(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id: {id} was not found.")
 
-    return { "post_detail": query_post }
+    return query_post
     
     
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -128,5 +127,25 @@ async def update_post(id: int, post: schemas.PostUpdate, db: Session = Depends(g
     upd_query.update(post.model_dump(),
                      synchronize_session=False)
     db.commit()
-    return {"post_detail": upd_query.first()}
+    return upd_query.first()
     
+
+@app.post("/users", status_code=status.HTTP_201_CREATED, response_model=schemas.UserResponse)
+async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    
+    # hash the password
+    user.password = utils.hash(user.password)
+
+    # create new user database entry
+    new_user = models.User(**user.model_dump())
+
+    # add new user object to the db
+    db.add(new_user)
+
+    # commit changes to db store
+    db.commit()
+
+    # replace 'new_user' with the refreshed version from the database
+    db.refresh(new_user)
+
+    return new_user
