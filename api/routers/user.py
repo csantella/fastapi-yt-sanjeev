@@ -3,7 +3,7 @@ from fastapi.params import Body
 from database import engine, get_db
 from sqlalchemy.orm import Session
 
-import crud, models, schemas, utils
+import models, schemas, utils
 
 
 router = APIRouter(
@@ -36,7 +36,7 @@ async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 @router.get("/{id}",response_model=schemas.UserResponse)
 async def get_user(id: int, db: Session = Depends(get_db)):
     # get user
-    query_user = crud.get_user_by_id(db, id)
+    query_user = db.query(models.User).filter(models.User.id == id).first()
 
     if query_user == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

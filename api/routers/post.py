@@ -3,7 +3,7 @@ from fastapi.params import Body
 from database import get_db
 from sqlalchemy.orm import Session
 
-import crud, models, oauth2, schemas
+import models, oauth2, schemas
 
 
 router = APIRouter(
@@ -12,21 +12,20 @@ router = APIRouter(
 )
 
 
-@router.get("/")
-async def get_posts(db: Session = Depends(get_db)):
-    posts = crud.get_posts(db)
+@router.get("/", response_model=list[schemas.PostResponse])
+async def get_posts(db: Session = Depends(get_db),
+                    curr_user: int = Depends(oauth2.get_current_user)
+                    ):
+    posts = db.query(models.Post).offset(0).limit(100).all()
     return posts
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.PostResponse)
 async def create_post(post: schemas.PostCreate,
-                      db: Session = Depends(get_db),
-                      user: models.User = Depends(oauth2.get_current_user)):
-    """ INSERT INTO posts (title, content, published) 
-            VALUES (%s, %s, %s) RETURNING *,
-            (post.title, post.content, post.published))"""
+                      curr_user: models.User = Depends(oauth2.get_current_user),
+                      db: Session = Depends(get_db)):
     
-    new_post = models.Post(**post.model_dump())
+    new_post = models.Post(owner_id=curr_user.id, **post.model_dump())
     
     # add new post object to the db
     db.add(new_post)
@@ -41,9 +40,10 @@ async def create_post(post: schemas.PostCreate,
     
 
 @router.get("/{id}", response_model=schemas.PostResponse)
-async def get_post(id: int, db: Session = Depends(get_db)):
-    # """SELECT * FROM posts WHERE id = %s""", (id,))
-    query_post = crud.get_post_by_id(db, id)
+async def get_post(id: int,
+                   curr_user: int = Depends(oauth2.get_current_user),
+                   db: Session = Depends(get_db)):
+    query_post = db.query(models.Post).filter(models.Post.id == id).first()
 
     if query_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -53,31 +53,45 @@ async def get_post(id: int, db: Session = Depends(get_db)):
     
     
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_post(id: int, db: Session = Depends(get_db)):
-    # """DELETE FROM posts WHERE id = %s RETURNING *""", (id,))
-    del_post = crud.post_query_by_id(db, id)
+async def delete_post(id: int,
+                      curr_user: int = Depends(oauth2.get_current_user),
+                      db: Session = Depends(get_db)):
+    del_query = db.query(models.Post).filter(models.Post.id == id)
+    del_post = del_query.first()
 
-    if del_post.first() == None:
+    if del_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Unable to delete post with id:{id}. Post was not found.")
     
-    del_post.delete(synchronize_session=False)
+    if curr_user.id != del_post.owner_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Unable to delete post with id:{id}. User '{curr_user.email}' is not authorized to perform the delete action on this post.") 
+    
+    del_query.delete(synchronize_session=False)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
     
     
 @router.put("/{id}")
-async def update_post(id: int, post: schemas.PostUpdate, db: Session = Depends(get_db)):
+async def update_post(post: schemas.PostUpdate,
+                      id: int,
+                      curr_user: int = Depends(oauth2.get_current_user),
+                      db: Session = Depends(get_db)):
     """
         UPDATE posts
         SET title = %s, content = %s, published = %s
         WHERE id = %s RETURNING *,
         (post.title, post.content, post.published, id))"""
-    upd_query = crud.post_query_by_id(db, id)
+    upd_query = db.query(models.Post).filter(models.Post.id == id)
+    upd_post = upd_query.first()
 
-    if upd_query.first() == None:
+    if upd_post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id:{id} was not found.")
+    
+    if curr_user.id != upd_post.owner_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Unable to update post with id:{id}. User '{curr_user.email}' is not authorized to perform the update action on this post.") 
     
     upd_query.update(post.model_dump(),
                      synchronize_session=False)

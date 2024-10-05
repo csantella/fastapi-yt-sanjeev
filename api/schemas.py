@@ -3,6 +3,24 @@ from pydantic import BaseModel, EmailStr
 from datetime import datetime
 
 
+class UserBase(BaseModel):
+    email: EmailStr
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserResponse(UserBase):
+    id: int
+    created_at: datetime
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class PostBase(BaseModel):
     title: str
     content: str
@@ -19,24 +37,9 @@ class PostUpdate(PostBase):
 
 
 class PostResponse(PostBase):
+    id: int
     created_at: datetime
-
-
-class UserBase(BaseModel):
-    email: EmailStr
-
-
-class UserCreate(UserBase):
-    password: str
-
-
-class UserResponse(UserBase):
-    created_at: datetime
-
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
+    owner: UserResponse
 
 
 class Token(BaseModel):
