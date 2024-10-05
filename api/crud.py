@@ -13,3 +13,6 @@ def post_query_by_id(db: Session, id: int) -> Query:
 
 def get_post_by_id(db: Session, id: int) -> models.Post:
     return post_query_by_id(db, id).first()
+
+def get_user_by_id(db: Session, id: int) -> models.User:
+    return db.query(models.User).filter(models.User.id == id).first()
