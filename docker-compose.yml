@@ -1,20 +1,17 @@
-x-shared-environment: &common-env
-  environment:
-    POSTGRES_HOST: db
-    POSTGRES_DB: postgres
-    POSTGRES_USER: postgres
-    POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-  secrets:
-    - db_password
-
 services:
   app:
     build: .
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PASSWORD: /run/secrets/db_password
     ports:
       - "8000:8000"
     volumes:
       - ./api:/api:ro
-    <<: *common-env
+    secrets:
+      - db_password
     depends_on:
       db:
         condition: service_healthy
@@ -22,13 +19,19 @@ services:
 
   db:
     image: postgres:16.2-alpine3.19
-    <<: *common-env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PASSWORD: /run/secrets/db_password
     ports:
       - "5432:5432"
     volumes:
       - ./.pgdata:/var/lib/postgresql/data:rw
+    secrets:
+      - db_password
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -38,4 +41,4 @@ services:
 
 secrets:
   db_password:
-    file: ./db_password.txt
+    file: ${POSTGRES_PASSWORD_FILE}

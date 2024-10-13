@@ -1,15 +1,7 @@
-import time
-from fastapi import FastAPI, Response, status, HTTPException, Depends
-from fastapi.params import Body
-from pydantic import BaseModel
-from typing import Optional
-from random import randrange
-from sqlalchemy.orm import Session
-import psycopg
-from psycopg.rows import dict_row
+from fastapi import FastAPI
 
-import crud, models, schemas, utils
-from database import engine, get_db
+import models
+from database import engine
 from routers import post, user, auth
 
 
