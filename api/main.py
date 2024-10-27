@@ -1,9 +1,12 @@
 from fastapi import FastAPI
 
 import models
+from config import settings
 from database import engine
 from routers import post, user, auth
 
+
+print(f"settings: {settings.model_dump()}")
 
 models.Base.metadata.create_all(bind=engine)
 

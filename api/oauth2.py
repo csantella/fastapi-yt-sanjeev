@@ -3,10 +3,12 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
 
+from config import settings
 from database import get_db
+from models import User
 from sqlalchemy.orm import Session
 
-import crud, schemas
+import schemas
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='login')
@@ -16,18 +18,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl='login')
 # Algorithm
 # Expiration time
 
-SECRET_KEY = "cc0defbaba80f83dd8d870c924d11c1a4e56fcfab804934dbd2512411b2ba7e2"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-
-def create_access_token(data: dict, expires_delta: int = ACCESS_TOKEN_EXPIRE_MINUTES):
+def create_access_token(data: dict, expires_delta: int = settings.access_token_expire_minutes):
     to_encode = data.copy()
 
     expire = datetime.now(timezone.utc) + timedelta(minutes=expires_delta)
     to_encode.update({"exp": expire})
 
-    return jwt.encode(to_encode, key=SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, key=settings.secret_key, algorithm=settings.token_algorithm)
 
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
@@ -36,7 +34,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
                                           headers={"WWW-Authenticate": "Bearer"})
     
     try:
-        payload = jwt.decode(token=token, key=SECRET_KEY, algorithms=ALGORITHM)
+        payload = jwt.decode(token=token, key=settings.secret_key, algorithms=settings.token_algorithm)
         id = payload.get("user_id")
 
         if id is None:
@@ -47,7 +45,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     except JWTError:
         raise credentials_exception
 
-    user = crud.get_user_by_id(db, id)
+    user = db.query(User).filter(User.id == id).first()
     
     if user is None:
         raise credentials_exception

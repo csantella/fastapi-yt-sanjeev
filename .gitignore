@@ -1,5 +1,6 @@
 __pycache__/*
 .pgdata/*
 *.pyc
+.env
 .venv*/*
 db_password.txt
