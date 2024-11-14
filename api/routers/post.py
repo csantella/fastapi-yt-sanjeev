@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Response, status, HTTPException, Depends, APIRouter
 from fastapi.params import Body
 from database import get_db
@@ -14,9 +15,14 @@ router = APIRouter(
 
 @router.get("/", response_model=list[schemas.PostResponse])
 async def get_posts(db: Session = Depends(get_db),
-                    curr_user: int = Depends(oauth2.get_current_user)
+                    curr_user: int = Depends(oauth2.get_current_user),
+                    limit: int = 25,
+                    skip: int = 0,
+                    search: Optional[str] = ""
                     ):
-    posts = db.query(models.Post).offset(0).limit(100).all()
+    
+    posts = db.query(models.Post).filter(models.Post.title.contains(search)).offset(skip).limit(limit).all()
+
     return posts
 
 
