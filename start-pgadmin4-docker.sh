@@ -13,5 +13,6 @@ docker pull dpage/pgadmin4:latest
 docker run -p 5050:80 \
 	-e "PGADMIN_DEFAULT_EMAIL=santella.chris@gmail.com" \
 	-e "PGADMIN_DEFAULT_PASSWORD=$PGADMIN_DEFAULT_PASSWORD" \
+    -v $HOME/.volumes/pgadmin:/var/lib/pgadmin \
 	--name local-pgadmin \
 	-d dpage/pgadmin4

@@ -27,7 +27,7 @@ services:
       POSTGRES_USER: ${DATABASE_USERNAME}
       POSTGRES_DB: ${DATABASE_NAME}
       POSTGRES_HOST: ${DATABASE_HOST}
-      POSTGRES_PASSWORD: /run/secrets/db_password
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     ports:
       - "5432:5432"
     volumes:
@@ -42,6 +42,27 @@ services:
       start_period: 30s
     
     restart: always
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: test@test.com
+      PGADMIN_DEFAULT_PASSWORD: test1234
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - .pgadmin:/var/lib/pgadmin
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep gunicorn"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
 
 secrets:
   db_password:

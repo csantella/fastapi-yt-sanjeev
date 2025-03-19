@@ -1,8 +1,10 @@
 __pycache__/*
-.pgdata/*
+.pgadmin/
+.pgdata/
 *.pyc
 .env*
-.venv*/*
+.venv*/
+.bruno/
 
 db_password.txt
 posts.txt
