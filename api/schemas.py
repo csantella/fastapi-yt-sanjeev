@@ -1,6 +1,6 @@
 from typing import Optional
 from typing_extensions import Annotated
-from pydantic import BaseModel, EmailStr, Field, conint
+from pydantic import BaseModel, EmailStr, Field 
 from datetime import datetime
 
 
