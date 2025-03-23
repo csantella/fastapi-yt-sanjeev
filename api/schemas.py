@@ -26,7 +26,12 @@ class PostBase(BaseModel):
     title: str
     content: str
     published: bool = True
-    # rating: Optional[int] = None
+
+
+class Post(PostBase):
+    id: int
+    created_at: datetime
+    owner: UserResponse
 
 
 class PostCreate(PostBase):
@@ -37,10 +42,9 @@ class PostUpdate(PostBase):
     published: bool
 
 
-class PostResponse(PostBase):
-    id: int
-    created_at: datetime
-    owner: UserResponse
+class PostResponse(BaseModel):
+    post: Post = Field(alias="Post", serialization_alias='post') # make sure lowercase 'post' maps to 'Post'
+    votes: int
 
 
 class Token(BaseModel):

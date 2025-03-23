@@ -4,7 +4,6 @@ __pycache__/*
 *.pyc
 .env*
 .venv*/
-.bruno/
 
 db_password.txt
 posts.txt
