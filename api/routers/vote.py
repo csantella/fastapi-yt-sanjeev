@@ -49,3 +49,4 @@ def vote(vote: schemas.Vote,
         db.commit()
 
         return {"message": "Successfully removed vote"}
+
