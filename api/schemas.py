@@ -59,3 +59,4 @@ class TokenData(BaseModel):
 class Vote(BaseModel):
     post_id: int
     direction: Annotated[int, Field(strict=True, ge=0, le=1)]
+

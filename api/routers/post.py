@@ -1,9 +1,8 @@
 from typing import Optional
 from fastapi import Response, status, HTTPException, Depends, APIRouter
-from sqlalchemy.sql.functions import count
 from database import get_db
 from sqlalchemy import func
-from sqlalchemy.orm import Session, query
+from sqlalchemy.orm import Session 
 
 import models
 import oauth2
@@ -110,3 +109,4 @@ async def update_post(post: schemas.PostUpdate,
                      synchronize_session=False)
     db.commit()
     return upd_query.first()
+
