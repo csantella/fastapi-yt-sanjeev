@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 
-from routers import post, user, auth, vote
-from version import get_version
+from api.routers import post, user, auth, vote
+from api.version import get_api_version
 
 # Removing below command, since alembic is now handling DB creation+revisions
 #models.Base.metadata.create_all(bind=engine)
 
-version = get_version()
+version = get_api_version()
 
 app = FastAPI(version=version)
 

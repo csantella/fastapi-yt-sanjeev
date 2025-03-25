@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .env*
 .venv*/
+api.egg-info/
 
 db_password.txt
 posts.txt
