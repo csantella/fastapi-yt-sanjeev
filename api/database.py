@@ -1,10 +1,10 @@
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from config import settings
+from api.config import settings
 
 
 try:
@@ -32,8 +32,8 @@ engine = create_engine(SQLALCHEMY_DB_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
-Base = declarative_base()
+metadata = MetaData(schema='dev')
+Base = declarative_base(metadata=metadata)
 
 
 # Dependency

@@ -1,12 +1,10 @@
 from fastapi import FastAPI
 
-import models
-from database import engine
 from routers import post, user, auth, vote
 from version import get_version
 
-
-models.Base.metadata.create_all(bind=engine)
+# Removing below command, since alembic is now handling DB creation+revisions
+#models.Base.metadata.create_all(bind=engine)
 
 version = get_version()
 
