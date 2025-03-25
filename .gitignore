@@ -1,8 +1,9 @@
 __pycache__/*
-.pgdata/*
+.pgadmin/
+.pgdata/
 *.pyc
 .env*
-.venv*/*
+.venv*/
 
 db_password.txt
 posts.txt

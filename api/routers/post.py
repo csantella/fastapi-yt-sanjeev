@@ -1,10 +1,12 @@
 from typing import Optional
 from fastapi import Response, status, HTTPException, Depends, APIRouter
-from fastapi.params import Body
 from database import get_db
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session 
 
-import models, oauth2, schemas
+import models
+import oauth2
+import schemas
 
 
 router = APIRouter(
@@ -21,9 +23,10 @@ async def get_posts(db: Session = Depends(get_db),
                     search: Optional[str] = ""
                     ):
     
-    posts = db.query(models.Post).filter(models.Post.title.contains(search)).offset(skip).limit(limit).all()
+    results = db.query(models.Post, func.count(models.Vote.post_id).label('votes')).join(models.Vote, isouter=True).group_by(models.Post.id).all()
+    print(f"results query: {results}")
 
-    return posts
+    return results
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.PostResponse)
@@ -49,9 +52,12 @@ async def create_post(post: schemas.PostCreate,
 async def get_post(id: int,
                    curr_user: int = Depends(oauth2.get_current_user),
                    db: Session = Depends(get_db)):
-    query_post = db.query(models.Post).filter(models.Post.id == id).first()
+    query_post = db.query(models.Post, func.count(models.Vote.post_id).label('votes')).join(models.Vote, id == models.Vote.post_id, isouter=True).group_by(models.Post.id).filter(models.Post.id == id).first()
+    num_votes = db.query(models.Post).join(models.Vote).where(models.Vote.post_id == id)
+    print(f"SQL: {query_post}")
+    print(f"Num Votes: {num_votes.count()}")
 
-    if query_post == None:
+    if query_post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id: {id} was not found.")
 
@@ -65,7 +71,7 @@ async def delete_post(id: int,
     del_query = db.query(models.Post).filter(models.Post.id == id)
     del_post = del_query.first()
 
-    if del_post == None:
+    if del_post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Unable to delete post with id:{id}. Post was not found.")
     
@@ -91,7 +97,7 @@ async def update_post(post: schemas.PostUpdate,
     upd_query = db.query(models.Post).filter(models.Post.id == id)
     upd_post = upd_query.first()
 
-    if upd_post == None:
+    if upd_post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Post with id:{id} was not found.")
     
@@ -103,3 +109,4 @@ async def update_post(post: schemas.PostUpdate,
                      synchronize_session=False)
     db.commit()
     return upd_query.first()
+

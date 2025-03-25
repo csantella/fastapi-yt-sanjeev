@@ -11,7 +11,9 @@ PGADMIN_DEFAULT_PASSWORD="$(cat .env-secret)"
 docker pull dpage/pgadmin4:latest
 
 docker run -p 5050:80 \
-	-e "PGADMIN_DEFAULT_EMAIL=santella.chris@gmail.com" \
-	-e "PGADMIN_DEFAULT_PASSWORD=$PGADMIN_DEFAULT_PASSWORD" \
-	--name local-pgadmin \
-	-d dpage/pgadmin4
+  -e "PGADMIN_DEFAULT_EMAIL=santella.chris@gmail.com" \
+  -e "PGADMIN_DEFAULT_PASSWORD=$PGADMIN_DEFAULT_PASSWORD" \
+  -e "PGADMIN_CONFIG_SERVER_MODE=False" \
+  -v ./.pgadmin:/var/lib/pgadmin \
+  --name local-pgadmin \
+  -d dpage/pgadmin4
