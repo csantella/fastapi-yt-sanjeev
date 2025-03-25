@@ -1,0 +1,7 @@
+Generic single-database configuration.
+
+Integrated with api.models, so as new models or updates to existing models are made, we can automatically
+migrate the changes to the database.
+
+Run `alembic revision --autogenerate -m "some revision message"`, then check the generated migration file 
+in versions/ folder and make sure the changes are as expected. Some manual changes may be needed.
