@@ -2,8 +2,8 @@ services:
   app:
     build:
       context: .
-      args:
-        - VCS_VERSION=${GIT_COMMIT_HASH} # Build-time arg
+      #args:
+      #  - VCS_VERSION=${GIT_COMMIT_HASH} # Build-time arg
     environment:
       DATABASE_USERNAME: ${DATABASE_USERNAME}
       DATABASE_NAME: ${DATABASE_NAME}
@@ -13,11 +13,11 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       TOKEN_ALGORITHM: ${TOKEN_ALGORITHM}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
-      VCS_VERSION: ${GIT_COMMIT_HASH} # Runtime arg
+      #VCS_VERSION: ${GIT_COMMIT_HASH} # Runtime arg
     ports:
       - "8000:8000"
     volumes:
-      - ./api:/api:ro
+      - ./api:/app/api:ro
     secrets:
       - db_password
     depends_on:

@@ -1,9 +1,9 @@
 from fastapi import status, HTTPException, Depends, APIRouter
-import models
-import oauth2
-import schemas
+import api.models as models
+import api.oauth2 as oauth2
+import api.schemas as schemas
 
-from database import get_db
+from api.database import get_db
 from sqlalchemy.orm import Session
 
 
