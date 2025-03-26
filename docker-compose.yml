@@ -2,8 +2,8 @@ services:
   app:
     build:
       context: .
-      args:
-        - VCS_VERSION=${GIT_COMMIT_HASH} # Build-time arg
+      #args:
+      #  - VCS_VERSION=${GIT_COMMIT_HASH} # Build-time arg
     environment:
       DATABASE_USERNAME: ${DATABASE_USERNAME}
       DATABASE_NAME: ${DATABASE_NAME}
