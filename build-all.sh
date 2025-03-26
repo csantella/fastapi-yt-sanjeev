@@ -17,7 +17,7 @@ fi
 
 VERSION="$(grep '^version =' pyproject.toml | cut -d '"' -f 2)$DEVTAG"
 
-echo "__version__ = $VERSION" > $SCRIPTDIR/api/_version.py
+echo "__version__ = \"$VERSION\"" > $SCRIPTDIR/api/_version.py
 
 #python -c "from api.version import get_version; open('api/_version.py', 'w').write(f'__version__ = \"{get_version()}\"')"
 docker compose build
