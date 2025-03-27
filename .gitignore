@@ -5,6 +5,7 @@ __pycache__/
 .env*
 .venv*/
 api.egg-info/
+api/_version.py
 
 db_password.txt
 posts.txt
