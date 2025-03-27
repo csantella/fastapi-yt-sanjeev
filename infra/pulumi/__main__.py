@@ -1,75 +1,164 @@
 import os
 import pulumi
 import pulumi_aws as aws
+from pulumi import Config
 
 LOCAL_IP = os.environ.get('LOCAL_IP', '0.0.0.0')
-# Create a security group with inbound rules
-security_group = aws.ec2.SecurityGroup("FastAPITutorialSecurityGroup",
-    description="launch-wizard-1 created 2025-03-27T03:05:29.635Z",
-    name="fastapi-yt-sg-1",
-    vpc_id="vpc-08fa77c93020e0090",
+
+# Configuration
+config = Config()
+vpc_id = config.get("vpc_id") or "vpc-08fa77c93020e0090"
+
+# 1. Create ECR Repository
+ecr_repo = aws.ecr.Repository("fastapi-repo",
+    name="fastapi-yt-tutorial",
+    image_tag_mutability="MUTABLE",
+    image_scanning_configuration=aws.ecr.RepositoryImageScanningConfigurationArgs(
+        scan_on_push=True
+    ))
+
+# 2. Network Setup
+vpc = aws.ec2.get_vpc(id=vpc_id)
+subnets = aws.ec2.get_subnets(filters=[aws.ec2.GetSubnetsFilterArgs(
+    name="vpc-id",
+    values=[vpc.id]
+)])
+
+# 3. Security Group
+app_sg = aws.ec2.SecurityGroup("fastapi-sg",
+    vpc_id=vpc.id,
+    description="FastAPI Security Group",
     ingress=[
         aws.ec2.SecurityGroupIngressArgs(
-            description="Allow SSH access from specific IP",
-            from_port=22,
-            to_port=22,
-            protocol="tcp",
-            cidr_blocks=[f"{LOCAL_IP}/32"],
-        ),
-        aws.ec2.SecurityGroupIngressArgs(
-            description="Allow HTTPS access from anywhere",
-            from_port=443,
-            to_port=443,
-            protocol="tcp",
-            cidr_blocks=["0.0.0.0/0"],
-        ),
-        aws.ec2.SecurityGroupIngressArgs(
-            description="Allow HTTP access from anywhere",
-            from_port=80,
-            to_port=80,
-            protocol="tcp",
-            cidr_blocks=["0.0.0.0/0"],
-        ),
+            protocol="tcp", from_port=80, to_port=80, cidr_blocks=["0.0.0.0/0"]
+        )
+    ])
+
+# 4. ECS Cluster
+cluster = aws.ecs.Cluster("fastapi-cluster")
+
+# 5. ECS Task Execution Role
+ecs_task_execution_role = aws.iam.Role("ecsTaskExecutionRole",
+    assume_role_policy=pulumi.Output.json_dumps({
+        "Version": "2012-10-17",
+        "Statement": [{
+            "Action": "sts:AssumeRole",
+            "Principal": {"Service": "ecs-tasks.amazonaws.com"},
+            "Effect": "Allow"
+        }]
+    }))
+
+# 6. Attach policy to role
+aws.iam.RolePolicyAttachment("ecsTaskExecutionPolicy",
+    role=ecs_task_execution_role.name,
+    policy_arn="arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy")
+
+# Get the official ECS-optimized Amazon Linux 2023 AMI
+ecs_optimized_ami = aws.ec2.get_ami(
+    owners=["amazon"],
+    filters=[
+        aws.ec2.GetAmiFilterArgs(
+            name="name",
+            values=["al2023-ami-ecs-*-x86_64"]
+        )
     ],
-    egress=[aws.ec2.SecurityGroupEgressArgs(
-        from_port=0,
-        to_port=0,
-        protocol="-1",
-        cidr_blocks=["0.0.0.0/0"],
-    )]
+    most_recent=True
+).id
+
+launch_template = aws.ec2.LaunchTemplate("ecs-launch-template",
+    image_id=ecs_optimized_ami,  # Official ECS-optimized AMI
+    instance_type="t2.micro",  # Instance type defined here
+    vpc_security_group_ids=[app_sg.id],
+    iam_instance_profile=aws.ec2.LaunchTemplateIamInstanceProfileArgs(
+        name=aws.iam.InstanceProfile("ecs-instance-profile",
+            role=aws.iam.Role("ecs-instance-role",
+                assume_role_policy=pulumi.Output.json_dumps({
+                    "Version": "2012-10-17",
+                    "Statement": [{
+                        "Effect": "Allow",
+                        "Principal": {"Service": "ec2.amazonaws.com"},
+                        "Action": "sts:AssumeRole"
+                    }]
+                })
+            ).name
+        ).name
+    ),
+    user_data=pulumi.Output.all(cluster.name).apply(
+        lambda args: pulumi.Output.secret(f"""#!/bin/bash
+        echo ECS_CLUSTER={args[0]} >> /etc/ecs/ecs.config
+        """
+        )
+    )
 )
 
-# Create the EC2 instance
-instance = aws.ec2.Instance("FastAPIInstance",
-    instance_type="t2.micro",
-    ami="ami-04f167a56786e4b09",
-    vpc_security_group_ids=[security_group.id],
-    key_name="fastapi-tutorial-kp",
-    root_block_device=aws.ec2.InstanceRootBlockDeviceArgs(
-        volume_type="gp3",
-        volume_size=8,
-        iops=3000,
-        throughput=125,
-        delete_on_termination=True,
-        encrypted=False,
-    ),
-    credit_specification=aws.ec2.InstanceCreditSpecificationArgs(
-        cpu_credits="standard"
-    ),
-    metadata_options=aws.ec2.InstanceMetadataOptionsArgs(
-        http_endpoint="enabled",
-        http_put_response_hop_limit=2,
-        http_tokens="required"
-    ),
-    private_dns_name_options=aws.ec2.InstancePrivateDnsNameOptionsArgs(
-        hostname_type="ip-name",
-        enable_resource_name_dns_aaaa_record=False,
-        enable_resource_name_dns_a_record=True
-    ),
-    tags={
-        "Name": "fastapi-yt",
-    }
+# 8. Auto Scaling Group (now properly included)
+asg = aws.autoscaling.Group("ecs-asg",
+    min_size=1,
+    max_size=3,
+    vpc_zone_identifiers=subnets.ids,
+    launch_template=aws.autoscaling.GroupLaunchTemplateArgs(
+        id=launch_template.id,
+        version="$Latest"
+    ))
+
+
+# 9. Capacity Provider
+capacity_provider = aws.ecs.CapacityProvider("ecs-capacity-provider",
+    auto_scaling_group_provider=aws.ecs.CapacityProviderAutoScalingGroupProviderArgs(
+        auto_scaling_group_arn=asg.arn,
+        managed_termination_protection="ENABLED",
+        managed_scaling={
+            "maximum_scaling_step_size": 1000,
+            "minimum_scaling_step_size": 1,
+            "status": "ENABLED",
+            "target_capacity": 10,
+        },
+    )
 )
 
-# Export the instance public IP
-pulumi.export("InstancePublicIP", instance.public_ip)
+# 10. Associate Capacity Provider with Cluster
+aws.ecs.ClusterCapacityProviders("cluster-capacity-providers",
+    cluster_name=cluster.name,
+    capacity_providers=[capacity_provider.name],
+    default_capacity_provider_strategies=[aws.ecs.ClusterCapacityProvidersDefaultCapacityProviderStrategyArgs(
+        base=1,
+        weight=100,
+        capacity_provider=capacity_provider.name
+    )])
+
+# 11. Task Definition
+task_definition = aws.ecs.TaskDefinition("fastapi-task",
+    family="fastapi",
+    network_mode="awsvpc",
+    requires_compatibilities=["EC2"],
+    cpu="256",
+    memory="512",
+    execution_role_arn=ecs_task_execution_role.arn,
+    container_definitions=pulumi.Output.all(ecr_repo.repository_url).apply(
+        lambda repo_url: pulumi.Output.json_dumps([{
+            "name": "fastapi",
+            "image": repo_url +":latest",
+            "essential": True,
+            "portMappings": [{
+                "containerPort": 80,
+                "hostPort": 80,
+                "protocol": "tcp"
+            }]
+        }])
+    ))
+
+# 12. ECS Service
+service = aws.ecs.Service("fastapi-service",
+    cluster=cluster.arn,
+    task_definition=task_definition.arn,
+    desired_count=1,
+    launch_type="EC2",
+    capacity_provider_strategies=[aws.ecs.ServiceCapacityProviderStrategyArgs(
+        capacity_provider=capacity_provider.name,
+        weight=100
+    )])
+
+# Export outputs
+pulumi.export("ecr_repo_url", ecr_repo.repository_url)
+pulumi.export("cluster_name", cluster.name)
+pulumi.export("service_name", service.name)
