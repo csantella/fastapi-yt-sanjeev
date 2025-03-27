@@ -18,6 +18,9 @@ services:
       - "8000:8000"
     volumes:
       - ./api:/app/api:ro
+      - type: bind
+        source: ./main.py
+        target: /app/main.py
     secrets:
       - db_password
     depends_on:
